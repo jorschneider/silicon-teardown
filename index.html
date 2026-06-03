@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SILICON TEARDOWN — Chip Bill-of-Materials Recognition Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;500;600;700&family=Saira+Semi+Condensed:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    /* Buff / blueprint engineering ground */
+    --paper:#e7e1d2;            /* buff paper ground */
+    --paper-2:#ddd6c4;         /* slightly darker buff panel */
+    --paper-edge:#cfc7b1;
+    --ink:#1b2620;             /* dark drafting ink (warm graphite/green) */
+    --ink-soft:#46504a;
+    --ink-faint:#7c8279;
+    --line:#9aa093;            /* hairline rule */
+    --line-strong:#5d655b;
+    --blueprint:#13384a;       /* deep blueprint accent for callout boxes */
+    --blueprint-ink:#cfe2ec;
+    --vermilion:#d2391b;       /* SINGLE alert color — severed / chokepoint ONLY */
+    --vermilion-deep:#a82a12;
+    --grid:rgba(40,60,55,0.05);
+    --grid-strong:rgba(40,60,55,0.10);
+    --stamp:#7a3326;
+    --ok:#3f5d3a;              /* domestic / low-risk marker (muted olive) */
+    --warn:#9a7a1f;            /* mature-but-foreign marker (muted ochre) */
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Saira Semi Condensed','Saira Condensed',system-ui,sans-serif;
+    font-size:15px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:26px 26px;
+  }
+  h1,h2,h3,h4{font-family:'Saira Condensed',sans-serif;font-weight:700;letter-spacing:.04em;margin:0}
+  .mono{font-family:'JetBrains Mono',monospace}
+  .caps{text-transform:uppercase;letter-spacing:.14em}
+
+  /* ---- Frame / sheet border like a drawing ---- */
+  .sheet{
+    max-width:1280px;
+    margin:0 auto;
+    padding:0;
+    border-left:2px solid var(--line-strong);
+    border-right:2px solid var(--line-strong);
+    background:
+      linear-gradient(var(--grid-strong) 1px,transparent 1px) 0 0/26px 26px,
+      var(--paper);
+    min-height:100vh;
+  }
+
+  /* ---- Title block / drawing header ---- */
+  header.titleblock{
+    border-bottom:2px solid var(--ink);
+    padding:0;
+    background:var(--paper-2);
+    position:relative;
+  }
+  .tb-top{
+    display:flex;align-items:stretch;
+    border-bottom:1px solid var(--line-strong);
+  }
+  .tb-id{
+    padding:14px 18px;
+    border-right:1px solid var(--line-strong);
+    min-width:150px;
+  }
+  .tb-id .num{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ink-soft);letter-spacing:.05em}
+  .tb-id .rev{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-faint);margin-top:2px}
+  .tb-title{flex:1;padding:12px 20px;display:flex;flex-direction:column;justify-content:center}
+  .tb-title h1{font-size:30px;line-height:1;letter-spacing:.06em}
+  .tb-title .sub{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-soft);margin-top:5px;letter-spacing:.02em}
+  .tb-stamp{
+    display:flex;align-items:center;padding:10px 16px;border-left:1px solid var(--line-strong);
+  }
+  /* persistent illustrative stamp */
+  .illus-stamp{
+    border:2px solid var(--stamp);
+    color:var(--stamp);
+    font-family:'Saira Condensed',sans-serif;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.10em;
+    font-size:11px;
+    line-height:1.05;
+    padding:6px 10px;
+    transform:rotate(-4deg);
+    text-align:center;
+    background:rgba(122,51,38,0.05);
+    box-shadow:inset 0 0 0 1px rgba(122,51,38,0.25);
+    user-select:none;
+  }
+  .illus-stamp small{display:block;font-size:8.5px;letter-spacing:.16em;font-weight:600;opacity:.85}
+
+  .tb-bottom{
+    display:flex;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-soft);
+  }
+  .tb-bottom div{padding:5px 14px;border-right:1px solid var(--line);letter-spacing:.03em}
+  .tb-bottom .grow{flex:1;border-right:none;text-align:right}
+  .about-btn{
+    cursor:pointer;background:none;border:none;color:var(--ink-soft);
+    font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.06em;
+    border-left:1px solid var(--line);padding:5px 14px;text-transform:uppercase;
+  }
+  .about-btn:hover{color:var(--vermilion-deep);background:rgba(0,0,0,.03)}
+
+  /* ---- Toolbar: weapon selection ---- */
+  .toolbar{
+    display:flex;flex-wrap:wrap;gap:0;border-bottom:2px solid var(--ink);
+    background:var(--paper-2);
+  }
+  .wsel{
+    flex:1;min-width:230px;
+    border-right:1px solid var(--line-strong);
+    padding:12px 16px 12px 16px;
+    cursor:pointer;
+    position:relative;
+    background:transparent;
+    transition:background .12s ease;
+    text-align:left;
+  }
+  .wsel:last-child{border-right:none}
+  .wsel:hover{background:rgba(19,56,74,0.05)}
+  .wsel.active{background:var(--blueprint);color:var(--blueprint-ink)}
+  .wsel.active .w-desc,.wsel.active .w-cat{color:#9fc0d2}
+  .wsel .w-cat{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;color:var(--ink-faint);text-transform:uppercase}
+  .wsel .w-name{font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:20px;letter-spacing:.04em;margin:1px 0 2px}
+  .wsel .w-desc{font-size:12.5px;color:var(--ink-soft);line-height:1.3}
+  .wsel .w-tick{
+    position:absolute;top:10px;right:12px;font-family:'JetBrains Mono',monospace;
+    font-size:10px;border:1px solid currentColor;border-radius:2px;padding:1px 5px;opacity:.55;letter-spacing:.05em;
+  }
+  .wsel.active .w-tick{opacity:1;border-color:var(--vermilion);color:#fff;background:var(--vermilion)}
+
+  /* ---- Main split ---- */
+  .main{display:grid;grid-template-columns:1.55fr 1fr;}
+  @media(max-width:980px){.main{grid-template-columns:1fr}}
+
+  .diagram-pane{
+    border-right:2px solid var(--ink);
+    position:relative;
+    min-height:560px;
+    overflow:hidden;
+  }
+  .pane-hd{
+    display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--line-strong);
+    padding:7px 14px;background:var(--paper-2);
+  }
+  .pane-hd h2{font-size:14px;letter-spacing:.16em}
+  .pane-hd .hint{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-faint);letter-spacing:.04em}
+
+  /* the SVG exploded diagram */
+  .diagram-wrap{position:relative;padding:6px}
+  svg.teardown{display:block;width:100%;height:auto;}
+  svg.teardown text{font-family:'JetBrains Mono',monospace;}
+
+  /* component node styling within svg uses classes set in JS */
+
+  /* ---- Right column: BOM + fragility ---- */
+  .data-pane{display:flex;flex-direction:column}
+
+  .frag-block{border-bottom:2px solid var(--ink);padding:0;background:var(--paper-2)}
+  .frag-top{display:flex;align-items:stretch}
+  .frag-gauge{
+    width:148px;border-right:1px solid var(--line-strong);
+    padding:14px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  }
+  .frag-num{font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:52px;line-height:.9;letter-spacing:.01em}
+  .frag-denom{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-faint);margin-top:1px}
+  .frag-band{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;margin-top:8px;padding:2px 8px;border:1px solid currentColor}
+  .frag-detail{flex:1;padding:11px 14px}
+  .frag-detail h3{font-size:13px;letter-spacing:.14em;margin-bottom:7px}
+  .frag-row{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px}
+  .frag-row .lbl{flex:1;color:var(--ink-soft);font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.02em;text-transform:uppercase}
+  .bar{height:7px;width:96px;background:var(--paper-edge);border:1px solid var(--line);position:relative;overflow:hidden}
+  .bar > i{position:absolute;left:0;top:0;bottom:0;background:var(--line-strong);display:block}
+  .bar.alert > i{background:var(--vermilion)}
+  .frag-row .val{width:34px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px}
+
+  /* retaliation control */
+  .retal{
+    border-bottom:2px solid var(--ink);
+    background:var(--paper);
+    padding:11px 14px;
+  }
+  .retal h3{font-size:12px;letter-spacing:.14em;color:var(--ink-soft);margin-bottom:8px}
+  .retal-opts{display:flex;flex-direction:column;gap:6px}
+  .chk{
+    display:flex;align-items:flex-start;gap:9px;cursor:pointer;
+    border:1px solid var(--line);padding:7px 9px;background:var(--paper-2);
+    transition:border-color .12s,background .12s;
+  }
+  .chk:hover{border-color:var(--line-strong)}
+  .chk.on{border-color:var(--vermilion);background:rgba(210,57,27,0.06)}
+  .chk .box{
+    width:15px;height:15px;border:1.5px solid var(--line-strong);flex:none;margin-top:1px;
+    position:relative;background:var(--paper);
+  }
+  .chk.on .box{border-color:var(--vermilion);background:var(--vermilion)}
+  .chk.on .box::after{content:"";position:absolute;left:3px;top:0px;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(40deg)}
+  .chk .ctxt{flex:1}
+  .chk .ctxt b{font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:.03em;display:block}
+  .chk .ctxt span{font-size:11.5px;color:var(--ink-soft);line-height:1.25;display:block;margin-top:1px}
+  .chk.on .ctxt b{color:var(--vermilion-deep)}
+
+  /* BOM table */
+  .bom{flex:1;overflow:auto}
+  .bom-hd{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:7px 14px;border-bottom:1px solid var(--line-strong);background:var(--paper-2);
+    position:sticky;top:0;z-index:2;
+  }
+  .bom-hd h2{font-size:13px;letter-spacing:.16em}
+  .bom-hd .cnt{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-faint)}
+  table.bomt{width:100%;border-collapse:collapse;font-size:12px}
+  table.bomt th{
+    font-family:'JetBrains Mono',monospace;font-weight:500;font-size:9.5px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--ink-faint);text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);
+    background:var(--paper-2);position:sticky;top:34px;z-index:1;
+  }
+  table.bomt td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.bomt tr{cursor:pointer}
+  table.bomt tr:hover td{background:rgba(19,56,74,0.045)}
+  table.bomt tr.sel td{background:rgba(19,56,74,0.10)}
+  .ref{font-family:'JetBrains Mono',monospace;color:var(--ink-soft);white-space:nowrap}
+  .cname{font-weight:600}
+  .cnode{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-soft)}
+  .flag-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle;border:1px solid rgba(0,0,0,.25)}
+  .dot-ok{background:var(--ok)}
+  .dot-warn{background:var(--warn)}
+  .dot-choke{background:var(--vermilion)}
+  tr.cut td{position:relative}
+  tr.cut td .cname{color:var(--vermilion-deep)}
+  tr.cut td:first-child::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--vermilion);
+  }
+  .cutbadge{
+    font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:.08em;color:#fff;background:var(--vermilion);
+    padding:1px 4px;border-radius:1px;margin-left:5px;white-space:nowrap;
+  }
+
+  /* detail callout box (selected component) */
+  .detail{
+    border-top:2px solid var(--ink);background:var(--blueprint);color:var(--blueprint-ink);
+    padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.5;
+  }
+  .detail.empty{background:var(--paper-2);color:var(--ink-faint);font-style:italic}
+  .detail .dt-name{font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:18px;letter-spacing:.04em;color:#fff;margin-bottom:3px}
+  .detail .dt-ref{color:#8fb4c6;font-size:11px;letter-spacing:.05em;margin-bottom:8px}
+  .detail dl{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin:0}
+  .detail dt{color:#7fa6ba;text-transform:uppercase;letter-spacing:.05em;font-size:9.5px;padding-top:1px}
+  .detail dd{margin:0;color:var(--blueprint-ink)}
+  .detail dd.choke{color:#ff9a82;font-weight:600}
+  .detail .fn{margin-top:9px;color:#c8dbe6;font-style:normal;line-height:1.55;border-top:1px solid rgba(255,255,255,.14);padding-top:8px}
+  .detail .cutnote{margin-top:8px;color:#ffb3a0;border:1px solid var(--vermilion);padding:6px 8px;background:rgba(210,57,27,0.18)}
+
+  /* footer */
+  footer{
+    border-top:2px solid var(--ink);background:var(--paper-2);
+    padding:9px 16px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-faint);
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;letter-spacing:.03em;
+  }
+
+  /* ABOUT modal */
+  .modal-bg{
+    position:fixed;inset:0;background:rgba(20,30,25,0.55);display:none;align-items:flex-start;justify-content:center;
+    z-index:50;padding:40px 16px;overflow:auto;
+  }
+  .modal-bg.show{display:flex}
+  .modal{
+    background:var(--paper);border:2px solid var(--ink);max-width:660px;width:100%;
+    box-shadow:0 24px 60px rgba(0,0,0,.35);
+  }
+  .modal-hd{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--ink);padding:12px 18px;background:var(--paper-2)}
+  .modal-hd h2{font-size:18px;letter-spacing:.10em}
+  .modal-x{cursor:pointer;background:none;border:1px solid var(--line-strong);font-family:'JetBrains Mono',monospace;font-size:13px;padding:2px 9px;color:var(--ink-soft)}
+  .modal-x:hover{border-color:var(--vermilion);color:var(--vermilion)}
+  .modal-bd{padding:16px 20px;font-size:13.5px;line-height:1.55}
+  .modal-bd h3{font-size:12px;letter-spacing:.12em;color:var(--ink-soft);margin:16px 0 5px;border-bottom:1px solid var(--line);padding-bottom:3px}
+  .modal-bd h3:first-child{margin-top:0}
+  .modal-bd p{margin:5px 0}
+  .modal-bd ul{margin:5px 0;padding-left:18px}
+  .modal-bd li{margin:3px 0}
+  .modal-bd .big-stamp{
+    border:2px solid var(--stamp);color:var(--stamp);text-align:center;padding:8px;margin:4px 0 12px;
+    font-family:'Saira Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.10em;font-size:14px;
+    background:rgba(122,51,38,0.06);
+  }
+  .modal-bd code{background:var(--paper-2);border:1px solid var(--line);padding:1px 4px;font-family:'JetBrains Mono',monospace;font-size:12px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--ink-soft);padding:7px 14px;border-bottom:1px solid var(--line-strong);background:var(--paper);font-family:'JetBrains Mono',monospace}
+  .legend span{display:flex;align-items:center;gap:6px}
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <!-- ============ TITLE BLOCK ============ -->
+  <header class="titleblock">
+    <div class="tb-top">
+      <div class="tb-id">
+        <div class="num">DWG&nbsp;ST-001</div>
+        <div class="rev">SHEET 1 / 1 · REV —</div>
+      </div>
+      <div class="tb-title">
+        <h1 class="caps">SILICON&nbsp;TEARDOWN</h1>
+        <div class="sub">CHIP BILL-OF-MATERIALS &nbsp;·&nbsp; SUPPLY-CHAIN FRAGILITY RECOGNITION MANUAL</div>
+      </div>
+      <div class="tb-stamp">
+        <div class="illus-stamp">ILLUSTRATIVE DATA<small>NOT A REAL TEARDOWN</small></div>
+      </div>
+    </div>
+    <div class="tb-bottom">
+      <div>SCALE: NTS</div>
+      <div>UNITS: PROCESS NODE / COO</div>
+      <div>CLASS: UNCLASSIFIED · DEMO</div>
+      <div class="grow">SELECT A SYSTEM TO EXPLODE →</div>
+      <button class="about-btn" id="aboutBtn">? ABOUT THIS DEMO</button>
+    </div>
+  </header>
+
+  <!-- ============ WEAPON SELECTOR ============ -->
+  <div class="toolbar" id="toolbar"></div>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+
+    <!-- LEFT: exploded diagram -->
+    <section class="diagram-pane">
+      <div class="pane-hd">
+        <h2 class="caps" id="diagTitle">EXPLODED ASSEMBLY</h2>
+        <div class="hint">CALLOUT = COMPONENT · CLICK NODE OR ROW TO INSPECT</div>
+      </div>
+      <div class="legend">
+        <span><i class="flag-dot dot-ok"></i>Domestic / dual-sourced</span>
+        <span><i class="flag-dot dot-warn"></i>Foreign · mature node</span>
+        <span><i class="flag-dot dot-choke"></i>Chokepoint dependency</span>
+        <span style="color:var(--vermilion)">━━ severed line (retaliation)</span>
+      </div>
+      <div class="diagram-wrap" id="diagramWrap"></div>
+    </section>
+
+    <!-- RIGHT: data -->
+    <section class="data-pane">
+
+      <!-- fragility -->
+      <div class="frag-block">
+        <div class="frag-top">
+          <div class="frag-gauge">
+            <div class="frag-num" id="fragNum">—</div>
+            <div class="frag-denom">/ 100 FRAGILITY</div>
+            <div class="frag-band" id="fragBand">—</div>
+          </div>
+          <div class="frag-detail">
+            <h3 class="caps">FRAGILITY DECOMPOSITION</h3>
+            <div class="frag-row"><span class="lbl">Supplier concentration</span><div class="bar" id="barConc"><i></i></div><span class="val" id="valConc">—</span></div>
+            <div class="frag-row"><span class="lbl">Foreign / single-source</span><div class="bar" id="barForeign"><i></i></div><span class="val" id="valForeign">—</span></div>
+            <div class="frag-row"><span class="lbl">Low substitutability</span><div class="bar" id="barSubst"><i></i></div><span class="val" id="valSubst">—</span></div>
+            <div class="frag-row"><span class="lbl">Chokepoint exposure</span><div class="bar" id="barChoke"><i></i></div><span class="val" id="valChoke">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- retaliation -->
+      <div class="retal">
+        <h3 class="caps">RETALIATION SCENARIO — SEVER A CHOKEPOINT</h3>
+        <div class="retal-opts" id="retalOpts"></div>
+      </div>
+
+      <!-- BOM -->
+      <div class="bom">
+        <div class="bom-hd">
+          <h2 class="caps">CHIP BILL OF MATERIALS</h2>
+          <span class="cnt" id="bomCount">—</span>
+        </div>
+        <table class="bomt">
+          <thead>
+            <tr>
+              <th>REF</th><th>COMPONENT</th><th>NODE</th><th>ORIGIN</th><th>FLAG</th>
+            </tr>
+          </thead>
+          <tbody id="bomBody"></tbody>
+        </table>
+      </div>
+
+      <!-- detail callout -->
+      <div class="detail empty" id="detail">SELECT A COMPONENT FROM THE DIAGRAM OR BOM TABLE TO READ ITS SPEC CARD.</div>
+
+    </section>
+  </div>
+
+  <footer>
+    <span>SILICON TEARDOWN · STATIC DEMO · NO BUILD STEP</span>
+    <span>ALL SUPPLIER / FAB / NODE DATA ILLUSTRATIVE &amp; UNSOURCED — SCAFFOLD ONLY</span>
+  </footer>
+</div>
+
+<!-- ============ ABOUT MODAL ============ -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+    <div class="modal-hd">
+      <h2 id="aboutTitle" class="caps">ABOUT THIS DEMO</h2>
+      <button class="modal-x" id="modalX" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-bd">
+      <div class="big-stamp">ILLUSTRATIVE DATA — NOT A REAL TEARDOWN</div>
+
+      <p>Silicon Teardown is an interactive concept tool. You pick a class of US guided
+      weapon, "explode" it into a notional chip bill-of-materials, inspect each component's
+      function / process node / (illustrative) supplier-fab-country, and watch a computed
+      <b>Fragility Score</b> react when you sever a semiconductor chokepoint.</p>
+
+      <h3>What is real</h3>
+      <ul>
+        <li>The <b>subsystem taxonomy</b> is grounded in general public knowledge of guided-munition
+        electronics: seekers / image processors, FPGAs, IMU &amp; MEMS gyros, RF front-ends,
+        GPS/GNSS receivers, power-management ICs, memory, microcontrollers.</li>
+        <li>The <b>fragility math</b> is a real, transparent, deterministic formula (concentration +
+        foreign/single-source + low substitutability + chokepoint exposure) — you can see every input
+        in the decomposition bars, and the retaliation toggle genuinely re-computes it live.</li>
+        <li>The named <b>chokepoints</b> (advanced-node foundry, EUV lithography, leadframe/OSAT
+        packaging, specialty RF/compound-semi) reflect real, widely-discussed structural pressure points.</li>
+      </ul>
+
+      <h3>What is illustrative / placeholder</h3>
+      <ul>
+        <li><b>Every specific component, supplier, fab, country-of-origin, node, and part reference is INVENTED</b>
+        to demonstrate the tool. Real board-level chip BOMs for fielded US weapons are largely non-public.</li>
+        <li>Supplier names shown are <b>archetypes</b> ("advanced-node foundry," "domestic FPGA vendor"), not
+        attributions of any real part to any real program.</li>
+        <li>The fragility weights are reasonable but not calibrated against classified or proprietary reality.</li>
+        <li>There are deliberately <b>no citations</b> — fake-precise sourcing would be worse than none.</li>
+      </ul>
+
+      <h3>What it would take to go live</h3>
+      <ul>
+        <li><b>Primary teardown research:</b> physical decap / X-ray / die-marking analysis, or vetted trade-press
+        and procurement-record sourcing, to establish a real BOM per system.</li>
+        <li><b>FOIA &amp; supply-chain disclosures</b> and DMSMS (diminishing-sources) records for supplier/fab mapping.</li>
+        <li><b>Expert verification</b> (Jordan + subject-matter reviewers) on every node, supplier, and chokepoint claim.</li>
+        <li><b>Calibrated weights</b> for the fragility model, ideally validated against historical disruption events.</li>
+        <li>This page itself stays <b>static</b> — no API keys or server needed. A production version would add a
+        sourced, reviewable dataset behind the same UI.</li>
+      </ul>
+
+      <h3>How to run</h3>
+      <p>Open <code>index.html</code> directly, or serve with <code>python3 -m http.server</code>.
+      No build step, no dependencies beyond Google Fonts.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   SILICON TEARDOWN — single-file static demo
+   ALL component / supplier / fab / node data below is ILLUSTRATIVE,
+   UNSOURCED, and INVENTED to demonstrate the tool. Not a real teardown.
+   ===================================================================== */
+
+/* ---- Chokepoints (shared) ---- */
+const CHOKEPOINTS = {
+  ADV_FAB:  { id:"ADV_FAB",  label:"Advanced-node foundry (≤7nm)", short:"Adv. foundry" },
+  EUV_LITHO:{ id:"EUV_LITHO",label:"EUV lithography toolchain",     short:"EUV litho" },
+  OSAT:     { id:"OSAT",     label:"Offshore OSAT / advanced packaging", short:"OSAT pkg" },
+  RF_COMPOUND:{ id:"RF_COMPOUND", label:"Specialty RF / compound-semi (GaAs/GaN)", short:"RF compound" }
+};
+
+/* flag categories */
+// "ok"    -> domestic or dual-sourced, low risk
+// "warn"  -> foreign but mature node, substitutable
+// "choke" -> sits on a named chokepoint AND single/limited source
+
+/* substitutability: 1 = drop-in alternates exist ... 5 = effectively single-source / bespoke */
+
+/* helper to build a component */
+function C(ref,name,fn,node,supplier,fab,country,flag,subst,choke){
+  return {ref,name,fn,node,supplier,fab,country,flag,subst,choke:choke||null};
+}
+
+/* =========================================================
+   THREE NOTIONAL SYSTEMS (all data illustrative)
+   ========================================================= */
+const SYSTEMS = [
+  {
+    id:"missile",
+    cat:"MAN-PORTABLE GUIDED MISSILE",
+    name:"FGM-CLASS ATGM",
+    desc:"Fire-and-forget anti-armor missile w/ imaging IR seeker.",
+    body:"missile",
+    components:[
+      C("U1","IR IMAGING SEEKER FPA","Cooled mid-wave infrared focal-plane array — locks &amp; tracks target thermal signature.","Specialty IR (mature)","Compound-semi IR house","Dedicated IR fab","Foreign (allied)","choke",5,"RF_COMPOUND"),
+      C("U2","SEEKER IMAGE PROCESSOR","Runs target detection / track-while-scan on seeker video.","12nm","Fabless DSP vendor","Advanced-node foundry","Offshore","choke",4,"ADV_FAB"),
+      C("U3","GUIDANCE FPGA","Reconfigurable flight-control &amp; sensor-fusion logic.","16nm","Domestic FPGA vendor","Advanced-node foundry","Offshore","choke",4,"ADV_FAB"),
+      C("U4","IMU / MEMS GYRO","6-axis inertial measurement for midcourse guidance.","MEMS (mature)","MEMS sensor maker","In-house MEMS fab","Domestic","warn",3,null),
+      C("U5","FLIGHT MCU","Housekeeping + safety/arming state machine.","40nm","Auto-grade MCU vendor","Mixed foundry","Mixed","ok",2,null),
+      C("U6","POWER MGMT IC","Thermal-battery regulation for the flight power bus.","180nm","Analog/PMIC vendor","Mature foundry","Domestic","ok",1,null),
+      C("U7","NONVOLATILE MEMORY","Stores mission profile + seeker calibration tables.","28nm","Memory vendor","Memory fab","Foreign (allied)","warn",2,null),
+      C("U8","SEEKER ADC FRONT-END","Digitizes FPA readout at frame rate.","65nm","Mixed-signal vendor","Mature foundry","Offshore","warn",3,null),
+      C("U9","PACKAGING / SiP","System-in-package integration of seeker stack.","Advanced packaging","OSAT subcontractor","Offshore OSAT","Offshore","choke",4,"OSAT")
+    ]
+  },
+  {
+    id:"jdam",
+    cat:"GUIDED-BOMB TAIL KIT",
+    name:"JDAM-CLASS GPS KIT",
+    desc:"Strap-on INS/GPS tail kit converting dumb bombs to PGMs.",
+    body:"jdam",
+    components:[
+      C("U1","GPS / GNSS RECEIVER","Acquires &amp; tracks GPS for terminal accuracy (anti-jam variant).","65nm","RF/GNSS SoC vendor","Mature foundry","Foreign (allied)","warn",3,null),
+      C("U2","NAV PROCESSOR","Fuses INS + GPS, solves guidance to target coords.","28nm","Fabless SoC vendor","Advanced-node foundry","Offshore","choke",4,"ADV_FAB"),
+      C("U3","IMU / MEMS ACCEL+GYRO","Free-inertial nav when GPS denied.","MEMS (mature)","Tactical-grade IMU maker","In-house MEMS fab","Domestic","warn",4,null),
+      C("U4","CONTROL FPGA","Drives tail-fin actuators &amp; control loop.","28nm","Domestic FPGA vendor","Advanced-node foundry","Offshore","choke",4,"ADV_FAB"),
+      C("U5","ACTUATOR DRIVER IC","Power stage for fin servo motors.","130nm","Motor-drive vendor","Mature foundry","Domestic","ok",2,null),
+      C("U6","RF ANTI-JAM FRONT-END","CRPA beam-steering / nulling front-end.","GaAs (mature)","RF compound-semi house","Compound-semi fab","Foreign (allied)","choke",4,"RF_COMPOUND"),
+      C("U7","POWER MGMT IC","Thermal-battery / bus regulation.","180nm","Analog/PMIC vendor","Mature foundry","Domestic","ok",1,null),
+      C("U8","CONFIG MEMORY","Holds FPGA bitstream + nav constants.","45nm","Memory vendor","Memory fab","Foreign (allied)","warn",2,null),
+      C("U9","HOUSEKEEPING MCU","Built-in test, arming logic, bus mgmt.","55nm","Auto-grade MCU vendor","Mature foundry","Mixed","ok",2,null)
+    ]
+  },
+  {
+    id:"uav",
+    cat:"SMALL ISR / LOITERING UAV",
+    name:"GROUP-1 sUAS",
+    desc:"Hand-launched ISR / one-way-attack quadcopter-class UAV.",
+    body:"uav",
+    components:[
+      C("U1","EO/IR CAMERA SoC","Gimbal camera ISP + onboard target detection.","12nm","Mobile/vision SoC vendor","Advanced-node foundry","Offshore","choke",5,"ADV_FAB"),
+      C("U2","AUTOPILOT SoC","Flight stack, mission exec, sensor fusion.","16nm","Embedded apps-proc vendor","Advanced-node foundry","Offshore","choke",4,"ADV_FAB"),
+      C("U3","GPS / GNSS RECEIVER","Multi-constellation positioning.","40nm","GNSS module vendor","Mature foundry","Offshore","warn",2,null),
+      C("U4","IMU / MEMS (9-axis)","Attitude / stabilization for flight control.","MEMS (mature)","Consumer MEMS maker","Commercial MEMS fab","Foreign","warn",2,null),
+      C("U5","DATALINK RF TRANSCEIVER","C2 + video downlink radio front-end.","28nm RFCMOS","RF transceiver vendor","Advanced-node foundry","Offshore","choke",3,"ADV_FAB"),
+      C("U6","RF POWER AMP","Datalink PA stage.","GaN (mature)","RF compound-semi house","Compound-semi fab","Foreign","choke",3,"RF_COMPOUND"),
+      C("U7","ESC / MOTOR DRIVER","Electronic speed controllers for rotors.","180nm","Motor-drive vendor","Mature foundry","Offshore","warn",1,null),
+      C("U8","PMIC / BATTERY MGMT","Battery management + power tree.","90nm","Analog/PMIC vendor","Mature foundry","Offshore","warn",1,null),
+      C("U9","FLASH MEMORY","Firmware + recorded ISR imagery.","20nm","NAND vendor","Memory fab","Foreign (allied)","warn",2,null),
+      C("U10","WiFi/COMMS MCU","Mesh / secondary comms + housekeeping.","28nm","Connectivity SoC vendor","Advanced-node foundry","Offshore","choke",2,"ADV_FAB"),
+      C("U11","ADVANCED PACKAGE / SiP","Stacked SoC + memory integration.","Advanced packaging","OSAT subcontractor","Offshore OSAT","Offshore","choke",4,"OSAT")
+    ]
+  }
+];
+
+/* =========================================================
+   FRAGILITY MODEL  (transparent, deterministic, 0..100)
+   Four normalized sub-scores, weighted, summed.
+   A "cut" chokepoint removes affected parts from supply and
+   re-weights the model toward the surviving exposure.
+   ========================================================= */
+const W = { conc:0.20, foreign:0.25, subst:0.25, choke:0.30 };
+
+function isForeign(c){ return /Foreign|Offshore|Mixed/i.test(c.country); }
+
+function computeFragility(sys, cutSet){
+  const comps = sys.components;
+  const n = comps.length;
+
+  // A part is "unavailable" if its chokepoint is in the cut set.
+  const cutOf = c => (c.choke && cutSet.has(c.choke));
+  const live = comps.filter(c => !cutOf(c));
+
+  // ---- Supplier concentration (HHI-like over chokepoint buckets) ----
+  // count how many parts ride each chokepoint; concentration rises with clustering.
+  const buckets = {};
+  comps.forEach(c => { const k = c.choke || ("free_"+c.ref); buckets[k]=(buckets[k]||0)+1; });
+  let hhi = 0;
+  Object.values(buckets).forEach(cnt => { const s = cnt/n; hhi += s*s; });
+  // hhi in (0..1]; map so a fully spread BOM ~ low, a clustered one ~ high
+  let conc = Math.min(1, (hhi - 1/n) / (0.45 - 1/n));
+  conc = Math.max(0, conc);
+
+  // ---- Foreign / single-source ----
+  const foreignCnt = comps.filter(isForeign).length;
+  const singleCnt  = comps.filter(c => c.subst >= 4).length;
+  let foreign = Math.min(1, (foreignCnt/n)*0.7 + (singleCnt/n)*0.6);
+
+  // ---- Low substitutability (avg subst 1..5 -> 0..1) ----
+  const avgSubst = comps.reduce((a,c)=>a+c.subst,0)/n;
+  let subst = Math.min(1, (avgSubst-1)/4);
+
+  // ---- Chokepoint exposure (share of parts on ANY chokepoint, weighted by subst) ----
+  const chokeParts = comps.filter(c=>c.choke);
+  let chokeExp = chokeParts.reduce((a,c)=>a + (c.subst/5), 0) / n; // 0..~1
+  chokeExp = Math.min(1, chokeExp*1.6);
+
+  // ---- Retaliation amplification ----
+  // when a chokepoint is severed, the parts on it are GONE. The system can't
+  // be built; remaining fragility concentrates and a hard penalty is applied
+  // per severed cluster proportional to how critical & unsubstitutable it was.
+  let cutPenalty = 0;
+  cutSet.forEach(ck => {
+    const hit = comps.filter(c => c.choke===ck);
+    if(hit.length){
+      const crit = hit.reduce((a,c)=>a + c.subst,0)/(hit.length*5); // 0..1 mean criticality
+      const share = hit.length/n;                                   // 0..1 share of BOM lost
+      cutPenalty += 0.18 + 0.55*crit*Math.sqrt(share);             // base hit + criticality·reach
+    }
+  });
+  cutPenalty = Math.min(0.7, cutPenalty);
+
+  // base 0..1
+  let base = conc*W.conc + foreign*W.foreign + subst*W.subst + chokeExp*W.choke;
+
+  // apply cut: push toward 1 (cascade). If anything is cut, system is effectively
+  // non-buildable -> fragility should spike hard but stay <=100.
+  let total01 = base;
+  if(cutSet.size){
+    total01 = base + (1-base)*cutPenalty;        // pull up toward ceiling
+    chokeExp = Math.min(1, chokeExp + 0.10*cutSet.size); // visually mark
+  }
+
+  const clamp = x => Math.max(0, Math.min(100, Math.round(x*100)));
+  return {
+    total: clamp(total01),
+    parts: {
+      conc:    clamp(conc),
+      foreign: clamp(foreign),
+      subst:   clamp(subst),
+      choke:   clamp(chokeExp)
+    },
+    cutCount: comps.filter(cutOf).length,
+    cutOf
+  };
+}
+
+function band(v){
+  if(v>=80) return {t:"CRITICAL", col:"var(--vermilion)"};
+  if(v>=62) return {t:"HIGH",     col:"var(--vermilion-deep)"};
+  if(v>=42) return {t:"ELEVATED", col:"var(--warn)"};
+  return {t:"MODERATE", col:"var(--ink-soft)"};
+}
+
+/* =========================================================
+   STATE
+   ========================================================= */
+let state = {
+  sysId: SYSTEMS[0].id,
+  cut: new Set(),       // set of chokepoint ids severed
+  selRef: null          // selected component ref
+};
+const sysById = id => SYSTEMS.find(s=>s.id===id);
+
+/* =========================================================
+   EXPLODED SVG DIAGRAM
+   Layout: a central body silhouette on the left, components
+   arranged in a vertical "exploded" column on the right with
+   hairline callout leaders connecting to the body axis.
+   ========================================================= */
+function flagClass(c){ return c.flag==="choke"?"dot-choke":(c.flag==="warn"?"dot-warn":"dot-ok"); }
+
+function bodySilhouette(kind){
+  // returns SVG markup for a simple technical silhouette centered at given coords
+  // drawn around x=70, vertical axis. Kept abstract & line-art.
+  if(kind==="missile"){
+    return `
+      <g stroke="var(--line-strong)" stroke-width="1.4" fill="none">
+        <path d="M40,40 L40,360 L62,375 L62,25 Z" fill="rgba(19,56,74,0.06)"/>
+        <path d="M40,40 Q24,24 40,16 Q56,24 40,40" />
+        <line x1="40" y1="70" x2="62" y2="70"/>
+        <line x1="40" y1="140" x2="62" y2="140"/>
+        <line x1="40" y1="210" x2="62" y2="210"/>
+        <line x1="40" y1="280" x2="62" y2="280"/>
+        <path d="M40,360 L20,392 L40,372 Z" fill="rgba(19,56,74,0.06)"/>
+        <path d="M62,375 L82,392 L62,372 Z" fill="rgba(19,56,74,0.06)"/>
+        <circle cx="51" cy="28" r="3"/>
+      </g>`;
+  }
+  if(kind==="jdam"){
+    return `
+      <g stroke="var(--line-strong)" stroke-width="1.4" fill="none">
+        <ellipse cx="51" cy="40" rx="14" ry="20" fill="rgba(19,56,74,0.06)"/>
+        <path d="M37,40 L37,330 L65,330 L65,40" fill="rgba(19,56,74,0.06)"/>
+        <path d="M37,330 L20,386 L37,348 Z" fill="rgba(19,56,74,0.06)"/>
+        <path d="M65,330 L82,386 L65,348 Z" fill="rgba(19,56,74,0.06)"/>
+        <path d="M37,330 L51,398 L65,330" />
+        <line x1="37" y1="100" x2="65" y2="100"/>
+        <line x1="37" y1="180" x2="65" y2="180"/>
+        <line x1="37" y1="260" x2="65" y2="260"/>
+      </g>`;
+  }
+  // uav
+  return `
+    <g stroke="var(--line-strong)" stroke-width="1.4" fill="none">
+      <rect x="34" y="150" width="34" height="120" rx="6" fill="rgba(19,56,74,0.06)"/>
+      <line x1="51" y1="150" x2="51" y2="60"/>
+      <line x1="14" y1="60" x2="88" y2="60"/>
+      <circle cx="14" cy="60" r="9"/><circle cx="88" cy="60" r="9"/>
+      <line x1="14" y1="360" x2="88" y2="360"/>
+      <line x1="34" y1="270" x2="14" y2="360"/>
+      <line x1="68" y1="270" x2="88" y2="360"/>
+      <circle cx="14" cy="360" r="9"/><circle cx="88" cy="360" r="9"/>
+      <circle cx="51" cy="200" r="10"/>
+      <line x1="34" y1="190" x2="68" y2="190"/>
+      <line x1="34" y1="230" x2="68" y2="230"/>
+    </g>`;
+}
+
+function renderDiagram(){
+  const sys = sysById(state.sysId);
+  const wrap = document.getElementById("diagramWrap");
+  const comps = sys.components;
+  const N = comps.length;
+
+  const W_SVG = 560;
+  const topPad = 18, botPad = 18;
+  const H_SVG = Math.max(440, topPad + botPad + N*38);
+  const colX = 250;          // left edge of spec boxes
+  const boxW = 290, boxH = 30;
+  const axisX = 51;          // body axis (anchor for leaders)
+  const rowH = (H_SVG - topPad - botPad) / N;
+
+  const cut = state.cut;
+
+  let nodes = "";
+  comps.forEach((c,i)=>{
+    const y = topPad + rowH*i + rowH/2;
+    const boxY = y - boxH/2;
+    const isCut = (c.choke && cut.has(c.choke));
+    const sel = c.ref === state.selRef;
+    const leaderColor = isCut ? "var(--vermilion)" : "var(--line)";
+    const leaderW = isCut ? 2 : 1;
+    const dash = isCut ? "" : `stroke-dasharray="1 0"`;
+    const dotColor = isCut ? "var(--vermilion)" :
+        (c.flag==="choke"?"var(--vermilion)":(c.flag==="warn"?"var(--warn)":"var(--ok)"));
+    const boxFill = sel ? "var(--blueprint)" : "var(--paper-2)";
+    const boxStroke = isCut ? "var(--vermilion)" : (sel? "var(--blueprint)":"var(--line-strong)");
+    const txtMain = sel ? "#ffffff" : "var(--ink)";
+    const txtSub  = sel ? "#9fc0d2" : "var(--ink-soft)";
+
+    // leader: from body axis -> elbow -> box left edge
+    const elbowX = colX - 26;
+    nodes += `
+      <g class="cnode" data-ref="${c.ref}" style="cursor:pointer">
+        <polyline points="${axisX},${y} ${elbowX-60},${y} ${elbowX},${boxY+boxH/2} ${colX},${boxY+boxH/2}"
+            fill="none" stroke="${leaderColor}" stroke-width="${leaderW}" ${dash}/>
+        <circle cx="${axisX}" cy="${y}" r="${isCut?4:3.2}" fill="${dotColor}" stroke="var(--paper)" stroke-width="1"/>
+        ${isCut?`<line x1="${axisX-7}" y1="${y-7}" x2="${axisX+7}" y2="${y+7}" stroke="var(--vermilion)" stroke-width="2"/>
+                 <line x1="${axisX-7}" y1="${y+7}" x2="${axisX+7}" y2="${y-7}" stroke="var(--vermilion)" stroke-width="2"/>`:""}
+        <rect x="${colX}" y="${boxY}" width="${boxW}" height="${boxH}" fill="${boxFill}" stroke="${boxStroke}" stroke-width="${isCut?1.6:1}"/>
+        <rect x="${colX}" y="${boxY}" width="4" height="${boxH}" fill="${dotColor}"/>
+        <text x="${colX+12}" y="${boxY+12}" font-size="9" fill="${txtSub}" letter-spacing="0.5">${c.ref} · ${esc(c.node)}</text>
+        <text x="${colX+12}" y="${boxY+24}" font-size="11.5" font-weight="600" fill="${txtMain}">${esc(stripAmp(c.name))}${isCut?`<tspan fill="var(--vermilion)" font-size="9"> ✕ UNAVAILABLE</tspan>`:""}</text>
+        <text x="${colX+boxW-8}" y="${boxY+19}" font-size="9" text-anchor="end" fill="${txtSub}">${flagText(c,isCut)}</text>
+      </g>`;
+  });
+
+  const svg = `
+    <svg class="teardown" viewBox="0 0 ${W_SVG} ${H_SVG}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Exploded chip bill of materials diagram">
+      <!-- corner ticks -->
+      <g stroke="var(--line)" stroke-width="1">
+        <line x1="6" y1="6" x2="22" y2="6"/><line x1="6" y1="6" x2="6" y2="22"/>
+        <line x1="${W_SVG-6}" y1="6" x2="${W_SVG-22}" y2="6"/><line x1="${W_SVG-6}" y1="6" x2="${W_SVG-6}" y2="22"/>
+        <line x1="6" y1="${H_SVG-6}" x2="22" y2="${H_SVG-6}"/><line x1="6" y1="${H_SVG-6}" x2="6" y2="${H_SVG-22}"/>
+        <line x1="${W_SVG-6}" y1="${H_SVG-6}" x2="${W_SVG-22}" y2="${H_SVG-6}"/><line x1="${W_SVG-6}" y1="${H_SVG-6}" x2="${W_SVG-6}" y2="${H_SVG-22}"/>
+      </g>
+      <text x="14" y="${H_SVG-12}" font-size="8.5" fill="var(--ink-faint)">FIG. 1 — ${esc(sys.cat)} · EXPLODED CHIP BOM (ILLUSTRATIVE)</text>
+      ${bodySilhouette(sys.body)}
+      <text x="51" y="${topPad-4}" font-size="8" text-anchor="middle" fill="var(--ink-faint)">AXIS</text>
+      ${nodes}
+    </svg>`;
+  wrap.innerHTML = svg;
+
+  // wire node clicks
+  wrap.querySelectorAll(".cnode").forEach(g=>{
+    g.addEventListener("click",()=>{ selectComponent(g.getAttribute("data-ref")); });
+  });
+}
+
+function flagText(c,isCut){
+  if(isCut) return "SEVERED";
+  if(c.flag==="choke") return "CHOKEPOINT";
+  if(c.flag==="warn")  return "FOREIGN/MATURE";
+  return "DOMESTIC/DUAL";
+}
+function stripAmp(s){ return s.replace(/&amp;/g,"&"); }
+function esc(s){ return String(s).replace(/&(?!amp;)/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+/* =========================================================
+   TOOLBAR (weapon selector)
+   ========================================================= */
+function renderToolbar(){
+  const tb = document.getElementById("toolbar");
+  tb.innerHTML = SYSTEMS.map(s=>`
+    <button class="wsel ${s.id===state.sysId?'active':''}" data-id="${s.id}">
+      <span class="w-tick">${s.id===state.sysId?'● LOADED':'○ SELECT'}</span>
+      <div class="w-cat">${s.cat}</div>
+      <div class="w-name">${s.name}</div>
+      <div class="w-desc">${s.desc}</div>
+    </button>`).join("");
+  tb.querySelectorAll(".wsel").forEach(b=>{
+    b.addEventListener("click",()=>{
+      state.sysId = b.getAttribute("data-id");
+      state.cut = new Set();
+      state.selRef = null;
+      renderAll();
+    });
+  });
+}
+
+/* =========================================================
+   RETALIATION OPTIONS — only chokepoints present in this system
+   ========================================================= */
+function renderRetal(){
+  const sys = sysById(state.sysId);
+  const present = new Set(sys.components.map(c=>c.choke).filter(Boolean));
+  const opts = document.getElementById("retalOpts");
+  if(present.size===0){ opts.innerHTML = `<div style="font-size:12px;color:var(--ink-faint)">No named chokepoints in this BOM.</div>`; return; }
+  opts.innerHTML = [...present].map(ckId=>{
+    const ck = CHOKEPOINTS[ckId];
+    const affected = sys.components.filter(c=>c.choke===ckId).length;
+    const on = state.cut.has(ckId);
+    return `
+      <label class="chk ${on?'on':''}" data-ck="${ckId}">
+        <span class="box"></span>
+        <span class="ctxt">
+          <b>SEVER · ${esc(ck.label)}</b>
+          <span>Cuts ${affected} part${affected>1?'s':''} from supply${on?' — SEVERED':''}.</span>
+        </span>
+      </label>`;
+  }).join("");
+  opts.querySelectorAll(".chk").forEach(l=>{
+    l.addEventListener("click",()=>{
+      const ck = l.getAttribute("data-ck");
+      if(state.cut.has(ck)) state.cut.delete(ck); else state.cut.add(ck);
+      renderAll();
+    });
+  });
+}
+
+/* =========================================================
+   BOM TABLE
+   ========================================================= */
+function renderBOM(frag){
+  const sys = sysById(state.sysId);
+  document.getElementById("bomCount").textContent =
+    sys.components.length + " PARTS · " + sys.components.filter(c=>c.choke).length + " ON CHOKEPOINTS";
+  const body = document.getElementById("bomBody");
+  body.innerHTML = sys.components.map(c=>{
+    const isCut = frag.cutOf(c);
+    const sel = c.ref===state.selRef;
+    const dot = isCut ? "dot-choke" : flagClass(c);
+    return `
+      <tr data-ref="${c.ref}" class="${isCut?'cut':''} ${sel?'sel':''}">
+        <td class="ref">${c.ref}</td>
+        <td><span class="cname">${stripAmp(c.name)}</span>${isCut?'<span class="cutbadge">SEVERED</span>':''}</td>
+        <td class="cnode">${esc(c.node)}</td>
+        <td>${esc(c.country)}</td>
+        <td><span class="flag-dot ${dot}"></span></td>
+      </tr>`;
+  }).join("");
+  body.querySelectorAll("tr").forEach(tr=>{
+    tr.addEventListener("click",()=>selectComponent(tr.getAttribute("data-ref")));
+  });
+}
+
+/* =========================================================
+   FRAGILITY GAUGE
+   ========================================================= */
+function renderFragility(frag){
+  const num = document.getElementById("fragNum");
+  num.textContent = frag.total;
+  const b = band(frag.total);
+  num.style.color = b.col;
+  const bandEl = document.getElementById("fragBand");
+  bandEl.textContent = b.t;
+  bandEl.style.color = b.col;
+  bandEl.style.borderColor = b.col;
+
+  const set=(barId,valId,v,alert)=>{
+    const bar=document.getElementById(barId);
+    bar.querySelector("i").style.width = v+"%";
+    bar.classList.toggle("alert", !!alert);
+    document.getElementById(valId).textContent = v;
+  };
+  const cutting = state.cut.size>0;
+  set("barConc","valConc",frag.parts.conc,false);
+  set("barForeign","valForeign",frag.parts.foreign,false);
+  set("barSubst","valSubst",frag.parts.subst,false);
+  set("barChoke","valChoke",frag.parts.choke,cutting);
+}
+
+/* =========================================================
+   DETAIL SPEC CARD
+   ========================================================= */
+function selectComponent(ref){
+  state.selRef = (state.selRef===ref)? null : ref;
+  renderDiagram();
+  // re-render BOM selection + detail without recompute weirdness
+  const frag = computeFragility(sysById(state.sysId), state.cut);
+  renderBOM(frag);
+  renderDetail(frag);
+}
+
+function renderDetail(frag){
+  const sys = sysById(state.sysId);
+  const el = document.getElementById("detail");
+  if(!state.selRef){
+    el.className="detail empty";
+    el.textContent="SELECT A COMPONENT FROM THE DIAGRAM OR BOM TABLE TO READ ITS SPEC CARD.";
+    return;
+  }
+  const c = sys.components.find(x=>x.ref===state.selRef);
+  if(!c){ el.className="detail empty"; el.textContent="—"; return; }
+  const isCut = frag.cutOf(c);
+  const ck = c.choke ? CHOKEPOINTS[c.choke].label : "None";
+  const flagWord = c.flag==="choke"?"CHOKEPOINT DEPENDENCY":(c.flag==="warn"?"FOREIGN · MATURE NODE":"DOMESTIC / DUAL-SOURCED");
+  el.className="detail";
+  el.innerHTML = `
+    <div class="dt-name">${stripAmp(c.name)}</div>
+    <div class="dt-ref">REF ${c.ref} · ${sys.name} · ${flagWord}</div>
+    <dl>
+      <dt>Node</dt><dd>${esc(c.node)}</dd>
+      <dt>Supplier</dt><dd>${esc(c.supplier)} <span style="opacity:.6">(illustrative)</span></dd>
+      <dt>Fab</dt><dd>${esc(c.fab)} <span style="opacity:.6">(illustrative)</span></dd>
+      <dt>Origin</dt><dd>${esc(c.country)}</dd>
+      <dt>Substit.</dt><dd>${'■'.repeat(c.subst)}${'□'.repeat(5-c.subst)} &nbsp;${c.subst}/5 ${c.subst>=4?'(near single-source)':''}</dd>
+      <dt>Chokepoint</dt><dd class="${c.choke?'choke':''}">${esc(ck)}</dd>
+    </dl>
+    <div class="fn">${stripAmp(c.fn)}</div>
+    ${isCut?`<div class="cutnote">✕ SUPPLY SEVERED — this part rides the cut chokepoint and cannot be sourced. With it, the assembly is non-buildable; fragility reflects the cascade.</div>`:""}
+  `;
+}
+
+/* =========================================================
+   RENDER ALL
+   ========================================================= */
+function renderAll(){
+  const sys = sysById(state.sysId);
+  document.getElementById("diagTitle").textContent = "EXPLODED ASSEMBLY · " + sys.name;
+  const frag = computeFragility(sys, state.cut);
+  renderToolbar();
+  renderRetal();
+  renderDiagram();
+  renderFragility(frag);
+  renderBOM(frag);
+  renderDetail(frag);
+}
+
+/* about modal */
+document.getElementById("aboutBtn").addEventListener("click",()=>document.getElementById("modalBg").classList.add("show"));
+document.getElementById("modalX").addEventListener("click",()=>document.getElementById("modalBg").classList.remove("show"));
+document.getElementById("modalBg").addEventListener("click",e=>{ if(e.target.id==="modalBg") e.target.classList.remove("show"); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") document.getElementById("modalBg").classList.remove("show"); });
+
+/* boot */
+renderAll();
+</script>
+</body>
+</html>
